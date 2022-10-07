@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Filter from './components/Filter';
+import PersonForm from './components/PersonForm';
 import Persons from './components/Persons';
 
 const guid = () => {
@@ -72,22 +73,12 @@ const App = () => {
       <h2>Phonebook</h2>
       <Filter filter={filter} setFilter={setFilter} />
       <h3>Add a new</h3>
-      <form onSubmit={handleSubmit}>
-        <div>
-          name:{' '}
-          <input value={newName} onChange={(e) => setNewName(e.target.value)} />
-        </div>
-        <div>
-          number:{' '}
-          <input
-            value={newNumber}
-            onChange={(e) => setNewNumber(e.target.value)}
-          />
-        </div>
-        <div>
-          <button type='submit'>add</button>
-        </div>
-      </form>
+      <PersonForm
+        newName={newName}
+        setNewName={setNewName}
+        newNumber={newNumber}
+        setNewNumber={setNewNumber}
+      />
       <h3>Numbers</h3>
       <Persons person={personRender} />
     </div>
