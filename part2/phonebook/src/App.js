@@ -1,40 +1,18 @@
 import { useEffect, useState } from 'react';
 import Filter from './components/Filter';
+import Notification from './components/Notification';
 import PersonForm from './components/PersonForm';
 import Persons from './components/Persons';
-import axios from 'axios';
-
-const guid = () => {
-  let s4 = () => {
-    return Math.floor((1 + Math.random()) * 0x10000)
-      .toString(16)
-      .substring(1);
-  };
-  //return id of format 'aaaaaaaa'-'aaaa'-'aaaa'-'aaaa'-'aaaaaaaaaaaa'
-  return (
-    s4() +
-    s4() +
-    '-' +
-    s4() +
-    '-' +
-    s4() +
-    '-' +
-    s4() +
-    '-' +
-    s4() +
-    s4() +
-    s4()
-  );
-};
+import personsService from './services/persons';
 
 const checkExistName = (name, arr) => {
   if (arr.length === 0) return false;
   const res = arr.find((ele) => ele.name.toLowerCase() === name.toLowerCase());
   // console.log(res);
   if (res === undefined) {
-    return false;
+    return null;
   }
-  return true;
+  return res;
 };
 
 const App = () => {
@@ -42,19 +20,105 @@ const App = () => {
   const [newName, setNewName] = useState('');
   const [newNumber, setNewNumber] = useState('');
   const [filter, setFilter] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (checkExistName(newName, persons)) {
-      alert(`${newName} is already added to phonebook`);
+    const checkPersonExist = checkExistName(newName, persons);
+    if (checkPersonExist) {
+      const ok = window.confirm(
+        `${newName} was already added to phonebook, replace the old number with a new one ?`
+      );
+      if (ok) {
+        const newPersonUpdate = {
+          ...checkPersonExist,
+          number: newNumber,
+        };
+        personsService
+          .updateById(checkPersonExist.id, newPersonUpdate)
+          .then((data) => {
+            setPersons(
+              persons.map((per) =>
+                per.id !== newPersonUpdate.id ? per : newPersonUpdate
+              )
+            );
+
+            setSuccessMessage('Updated ' + newPersonUpdate.name);
+            setTimeout(() => setSuccessMessage(null), 3000);
+          })
+          .catch((err) => {
+            console.log(err);
+            if (err.response.data) {
+              setErrorMessage(err.response.data.error);
+              setTimeout(() => setErrorMessage(null), 3000);
+              return;
+            }
+            setErrorMessage(
+              `Information of ${newPersonUpdate.name} has already been removed from server`
+            );
+            setTimeout(() => setErrorMessage(null), 3000);
+            return;
+          });
+      }
+      setNewName('');
+      setNewNumber('');
       return;
     }
     const newPerson = {
-      id: guid(),
+      // id: guid(),
       name: newName,
       number: newNumber,
     };
-    setPersons(persons.concat(newPerson));
+
+    personsService
+      .addNew(newPerson)
+      .then((data) => {
+        setPersons(persons.concat(data));
+
+        setSuccessMessage('Added ' + newPerson.name);
+        setTimeout(() => setSuccessMessage(null), 3000);
+      })
+      .catch((err) => {
+        if (err.response.data) {
+          setErrorMessage(err.response.data.error);
+          setTimeout(() => setErrorMessage(null), 3000);
+          return;
+        }
+        setErrorMessage(`Error when add new person on db`);
+        setTimeout(() => setErrorMessage(null), 3000);
+      });
+
+    setNewName('');
+    setNewNumber('');
+  };
+
+  const handleDeletePerson = (person) => {
+    const ok = window.confirm(`Delete ${person.name} ?`);
+    if (ok) {
+      personsService
+        .deleteById(person.id)
+        .then((data) => {
+          // console.log(data);
+          setPersons(persons.filter((per) => per.id !== person.id));
+
+          setSuccessMessage('Deleted ' + person.name);
+          setTimeout(() => setSuccessMessage(null), 3000);
+        })
+        .catch((err) => {
+          if (err.response.data) {
+            setErrorMessage(err.response.data.error);
+            setTimeout(() => setErrorMessage(null), 3000);
+            return;
+          }
+          setErrorMessage(
+            `Information of ${person.name} has already been removed from server`
+          );
+          setTimeout(() => setErrorMessage(null), 3000);
+          return;
+        });
+    }
+    return;
   };
 
   const personRender =
@@ -66,15 +130,19 @@ const App = () => {
 
   useEffect(() => {
     console.log('effect');
-    axios.get('http://localhost:3001/persons').then((res) => {
-      console.log('promise fulfilled');
-      setPersons(res.data);
-    });
+    personsService
+      .getAll()
+      .then((data) => setPersons(data))
+      .catch((err) => alert('Error when get data from server.'));
   }, []);
 
   return (
     <div>
       <h2>Phonebook</h2>
+      <Notification
+        errorMessage={errorMessage}
+        successMessage={successMessage}
+      />
       <Filter filter={filter} setFilter={setFilter} />
       <h3>Add a new</h3>
       <PersonForm
@@ -85,7 +153,7 @@ const App = () => {
         handleSubmit={handleSubmit}
       />
       <h3>Numbers</h3>
-      <Persons person={personRender} />
+      <Persons persons={personRender} handleDeletePerson={handleDeletePerson} />
     </div>
   );
 };
